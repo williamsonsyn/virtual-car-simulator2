@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>hyperdrive</groupId>
+    <artifactId>hyperdrive</artifactId>
+    <version>0.2.0</version>
+    <name>HyperDrive: Object-Oriented Hypercar Control and Simulation System</name>
+
+    <properties>
+        <maven.compiler.release>17</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <build>
+        <plugins>
+            <!-- Step 2: console demo. Run with:  mvn compile exec:java -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <configuration>
+                    <mainClass>hyperdrive.Main</mainClass>
+                </configuration>
+            </plugin>
+            <!-- Step 10 (JavaFX): add the org.openjfx javafx-controls dependency and the
+                 org.openjfx javafx-maven-plugin here. Not needed yet. -->
+        </plugins>
+    </build>
+</project>
