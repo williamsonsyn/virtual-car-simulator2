@@ -43,6 +43,9 @@ public class BrakeSystem extends VehicleSystem {
 
     public boolean isPedalPressed() { return pedal > 0.1; }
 
+    /** Raw pedal position, 0.0-1.0. Used by ESC and Launch Control to check the driver's inputs. */
+    public double getPedalPosition() { return pedal; }
+
     /** 0.0 - 1.0. A low hydraulic pressure fault weakens braking; ABS trades a little force for stability. */
     public double getBrakingForce() {
         double pressureFactor = Math.min(1.0, hydraulicPressure.getValue() / NOMINAL_PRESSURE);

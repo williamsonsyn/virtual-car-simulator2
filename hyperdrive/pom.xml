@@ -12,7 +12,16 @@
     <properties>
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <javafx.version>21.0.2</javafx.version>
     </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>
@@ -25,8 +34,16 @@
                     <mainClass>hyperdrive.Main</mainClass>
                 </configuration>
             </plugin>
-            <!-- Step 10 (JavaFX): add the org.openjfx javafx-controls dependency and the
-                 org.openjfx javafx-maven-plugin here. Not needed yet. -->
+            <!-- Step 9: JavaFX Cockpit screen. Run with:  mvn clean javafx:run
+                 (plain java/javac will NOT run this class - see README "Run the JavaFX UI") -->
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>0.0.8</version>
+                <configuration>
+                    <mainClass>hyperdrive.ui.HyperDriveApp</mainClass>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

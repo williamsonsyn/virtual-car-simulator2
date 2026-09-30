@@ -1,0 +1,78 @@
+.root-pane {
+    -fx-background-color: #0b0d10;
+}
+.top-bar {
+    -fx-background-color: #14171c;
+    -fx-border-color: transparent transparent #22262d transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.app-title {
+    -fx-text-fill: #e7e9ec;
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+}
+.power-badge, .power-badge-fault {
+    -fx-padding: 4 10 4 10;
+    -fx-background-radius: 4;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+    -fx-font-size: 12px;
+}
+.power-badge {
+    -fx-background-color: #1e3a2f;
+    -fx-text-fill: #59d68c;
+}
+.power-badge-fault {
+    -fx-background-color: #3a1e1e;
+    -fx-text-fill: #ff6b6b;
+}
+.center-pane {
+    -fx-background-color: #0b0d10;
+}
+.big-number {
+    -fx-text-fill: #f4f6f8;
+    -fx-font-size: 64px;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+    -fx-font-weight: bold;
+}
+.unit-label {
+    -fx-text-fill: #6b7280;
+    -fx-font-size: 12px;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+}
+.mode-label {
+    -fx-text-fill: #59a6ff;
+    -fx-font-size: 15px;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+}
+.info-label {
+    -fx-text-fill: #a0a6ad;
+    -fx-font-size: 13px;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+}
+.side-panel {
+    -fx-background-color: #14171c;
+    -fx-background-radius: 6;
+    -fx-border-color: #22262d;
+    -fx-border-radius: 6;
+}
+.side-panel Label {
+    -fx-text-fill: #c7cbd1;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+    -fx-font-size: 13px;
+}
+.bottom-bar {
+    -fx-background-color: #14171c;
+    -fx-border-color: #22262d transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+.status-label {
+    -fx-text-fill: #f4c95d;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+    -fx-font-size: 13px;
+}
+.hint-label {
+    -fx-text-fill: #565c64;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+    -fx-font-size: 11px;
+}
