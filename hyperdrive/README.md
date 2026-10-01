@@ -2,19 +2,40 @@
 Educational simulator INSPIRED by the McLaren 720S. Not McLaren software; all logic and thresholds are our own simplifications.
 UI branding: HYPERDRIVE X-01.
 
-## Status: Step 9 - JavaFX Cockpit/Dashboard screen (first UI screen)
-Everything from Step 8, plus a real JavaFX window: HyperDriveApp, the Cockpit/Dashboard screen (1 of the
-original 3 planned screens - Diagnostics and Fault Simulator come in a later pass). Keyboard-driven,
-dark themed, backed by the exact same Car + SimulationEngine + TelemetrySnapshot from the console steps -
-no new vehicle logic was written for the UI, it only calls Car's public methods and displays the result.
+## Status: Step 9c - critical-fault auto-shutdown + Fault Simulator screen
+Step 9's Cockpit screen was tested end-to-end by the user and confirmed working: engine start/brake
+interlock, live telemetry, mode-switch denials, clean shutdown all verified on a real run.
 
-**IMPORTANT: this step is UNVERIFIED by me.** I have no display and no access to Maven Central in my
-environment, so I could not compile or run this with the real JavaFX libraries - only cross-check every
-method call against our own Car/TelemetrySnapshot source (all present and correctly named) and confirm the
-file has no syntax errors (compiled it without the JavaFX jars on the classpath and got only "package does
-not exist" / "cannot find symbol" errors - no parse errors). You are the first real compile of this file.
-Run it and paste back whatever happens, exactly like every Windows/Maven run so far - that's how we'll
-find and fix anything wrong with it.
+This step adds the Fault Simulator screen (2 of 3 planned) and refactors the UI to support multiple
+screens cleanly:
+- Screen (interface): both screens implement refresh(TelemetrySnapshot) - the AnimationTimer refreshes
+  BOTH every frame via a Screen[] array regardless of which is visible, the same polymorphism pattern
+  as VehicleSystem[] in Car and SafetyCheck[] in DiagnosticSystem.
+- CockpitScreen: the Step 9 dashboard, extracted out of HyperDriveApp into its own class.
+- FaultSimulatorScreen: one row per FaultType with an INJECT/CLEAR button and live OK/ACTIVE status.
+  Needed ZERO new Car methods - injectFault()/clearFault()/getActiveFaults() already existed from the
+  console steps and are already synchronized, so button clicks from the JavaFX thread are safe to run
+  alongside the SimulationEngine's background thread for the same reason explained in "Thread safety" below.
+- HyperDriveApp is now a coordinator: shared header (title, power badge, screen-name badge) and footer
+  (status + hint text that changes per screen), swapping only the center content on F/C.
+
+**New since then - critical-fault auto-shutdown (in Car, not the UI):** if the engine is running and ANY
+active fault has CRITICAL severity, a 10-second countdown starts. Clearing every critical fault before it
+reaches zero cancels the countdown. If it reaches zero, the engine shuts itself down - and startEngine()'s
+existing diagnostics already refuse to restart while a critical fault is active, so no separate "locked out"
+flag was needed. This is CONFIRMED WORKING via a real console run (Section 16): countdown ticks 10->8->6->4,
+cancels correctly when cleared mid-countdown, genuinely shuts the engine off at 11s uncleared, restart is
+denied with the real reason while the fault remains, and restart succeeds once cleared. TelemetrySnapshot
+now carries this countdown too, and CockpitScreen shows a red "CRITICAL FAULT - ENGINE SHUTDOWN IN Xs"
+banner when it's active (display-only addition to the already-confirmed-working Cockpit screen).
+
+**Verification status:** the Car logic (countdown, cancellation, shutdown, restart-lockout) is
+CONFIRMED WORKING - tested in the console, not just read. The JavaFX changes (Fault Simulator screen,
+the new warning banner) are UNVERIFIED by me beyond static checks, same limitation as every UI step (no
+display, no Maven Central here): every Car/FaultType/Fault/TelemetrySnapshot method call cross-checked
+against our actual source, all UI files compile with zero genuine syntax errors (only expected "javafx
+package does not exist" cascades), and the console demo still runs all 20 sections unaffected. Run it and
+paste back what happens.
 
 ## Run the console demo
 Needs JDK 17+.
@@ -41,8 +62,9 @@ Other things that could go wrong (all untested by me - report back what you actu
 - If the window opens but is blank/styling looks off, the CSS path
   (src/main/resources/hyperdrive/ui/dashboard.css) might not be on the classpath - confirm the file exists
   at exactly that path relative to the project root.
-- Every key in the on-screen hint should work except A/D (no steering system exists to bind to) and F/T
-  (their screens don't exist yet).
+- Every key in the on-screen hint should work except A/D (no steering system exists to bind to) and T
+  (the Diagnostics screen doesn't exist yet). F now works - it switches to the Fault Simulator screen,
+  and C switches back to Cockpit.
 
 ## Packages
 | Package | Contents |
@@ -58,7 +80,7 @@ Other things that could go wrong (all untested by me - report back what you actu
 | hyperdrive.io | Logger (FileWriter/BufferedWriter, append mode), LogReader (FileReader/BufferedReader) |
 | hyperdrive.sim | SimulationEngine (implements Runnable - the recurring tick loop), StartupSequenceThread (extends Thread - a one-shot task) |
 | hyperdrive.telemetry | TelemetrySnapshot (immutable dashboard DTO), DriveModeInfo (small immutable copy of the current mode) |
-| hyperdrive.ui | HyperDriveApp - the JavaFX Cockpit/Dashboard screen (extends Application) |
+| hyperdrive.ui | HyperDriveApp (coordinator, extends Application), Screen (interface), CockpitScreen, FaultSimulatorScreen |
 
 ## Design rule
 The UI calls Car. Car decides (via SafetyChecks and the systems' own rules) and throws OperationDeniedException with every reason.
@@ -78,8 +100,15 @@ values under a SINGLE synchronized call, so they're guaranteed to be from the sa
 individually safe, but consistent as a group. This is what the JavaFX UI (Step 9) will actually poll.
 
 ## Next steps
-Diagnostics screen | Fault Simulator screen | A/D steering (no system to bind to yet) | F/T screen-switch keys |
+Diagnostics screen (T key) | A/D steering (no system to bind to yet) |
 10 polish (input debounce, throttle/brake ramping instead of instant on/off) | 11 viva prep
+
+## Critical-fault shutdown (Car.java)
+CRITICAL_FAULT_SHUTDOWN_SECONDS = 10.0. Car.hasCriticalFault() checks activeFaults for ANY fault whose
+Severity is CRITICAL (not just a specific FaultType) - so OVERHEATING, LOW_FUEL_PRESSURE, LOW_BRAKE_PRESSURE,
+and TRANSMISSION_FAULT (the four CRITICAL-severity faults) all trigger it. getCriticalFaultCountdown()
+returns 0 when no countdown is active, or the remaining seconds otherwise - used by both the console demo
+(Section 16) and TelemetrySnapshot/CockpitScreen.
 
 ## Log file
 Running Main creates/appends to logs/hyperdrive-session.log (git-ignored). Each run adds a

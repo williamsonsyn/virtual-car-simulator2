@@ -38,9 +38,11 @@ import java.util.List;
  */
 public class Car {
     private static final double MODE_CHANGE_MAX_SPEED = 20.0;   // km/h - must slow down to switch modes
+    private static final double CRITICAL_FAULT_SHUTDOWN_SECONDS = 10.0;
 
     private PowerState powerState = PowerState.SLEEP;
     private DriveMode currentMode = new ComfortMode();   // Comfort is always the default on start
+    private double criticalFaultCountdown = -1;   // -1 = not counting down; otherwise seconds remaining
 
     private final Engine engine = new Engine();
     private final FuelSystem fuel = new FuelSystem();
@@ -394,7 +396,42 @@ public class Car {
             powerState = PowerState.POWER_ON;
             addEvent("ENGINE STALLED - out of fuel", Severity.CRITICAL);
         }
+
+        // Critical-fault shutdown: a critical fault while the engine is running starts a countdown.
+        // Clearing every critical fault before it reaches zero cancels the countdown. If it reaches
+        // zero, the engine shuts itself down - and startEngine()'s diagnostics already refuse to
+        // restart while a critical fault is active, so no separate "locked out" flag is needed.
+        if (engine.isRunning() && hasCriticalFault()) {
+            if (criticalFaultCountdown < 0) {
+                criticalFaultCountdown = CRITICAL_FAULT_SHUTDOWN_SECONDS;
+                addEvent(String.format("CRITICAL FAULT ACTIVE - engine will shut down in %.0fs if not cleared",
+                        CRITICAL_FAULT_SHUTDOWN_SECONDS), Severity.CRITICAL);
+            } else {
+                criticalFaultCountdown -= dt;
+                if (criticalFaultCountdown <= 0) {
+                    engine.stop();
+                    powerState = PowerState.POWER_ON;
+                    criticalFaultCountdown = -1;
+                    addEvent("ENGINE SHUTDOWN - critical fault was not cleared in time", Severity.CRITICAL);
+                }
+            }
+        } else if (criticalFaultCountdown >= 0) {
+            criticalFaultCountdown = -1;
+            addEvent("Critical fault cleared - shutdown countdown cancelled", Severity.INFO);
+        }
     }
+
+    private boolean hasCriticalFault() {
+        for (Fault f : activeFaults) {
+            if (f.getSeverity() == Severity.CRITICAL) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Seconds until auto-shutdown if a critical fault isn't cleared in time; 0 if no countdown is active. */
+    public synchronized double getCriticalFaultCountdown() { return Math.max(0.0, criticalFaultCountdown); }
 
     /** Deliberately simple speed model: speed chases (rpm fraction x gear top speed). No real physics. */
     private void updateSpeed(double dt) {
@@ -493,7 +530,7 @@ public class Car {
                 cooling.getCoolantTemp(), cooling.getOilTemp(), brakes.getDiscTemperature(),
                 electrical.getVoltage(), airbrake.getState(), lift.getState(), esc.isEnabled(),
                 esc.getDriftLevel(), launch.getState(), launch.getBoostPercent(),
-                tyres.getSnapshot(), activeFaults.size());
+                tyres.getSnapshot(), activeFaults.size(), getCriticalFaultCountdown());
     }
 
     // Live system access, used by the SafetyChecks - those run from inside Car's own synchronized

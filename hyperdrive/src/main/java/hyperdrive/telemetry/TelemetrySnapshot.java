@@ -39,12 +39,14 @@ public final class TelemetrySnapshot {
     private final double launchBoostPercent;
     private final Tyre[] tyres;
     private final int activeFaultCount;
+    private final double criticalFaultCountdown;
 
     public TelemetrySnapshot(PowerState powerState, DriveModeInfo mode, double speedKmh, double rpm,
             double throttle, GearPosition gear, double fuelLevelPercent, double fuelPressure,
             double coolantTemp, double oilTemp, double brakeDiscTemp, double batteryVoltage,
             AirbrakeState airbrakeState, LiftState liftState, boolean escEnabled, double driftLevel,
-            LaunchState launchState, double launchBoostPercent, Tyre[] tyres, int activeFaultCount) {
+            LaunchState launchState, double launchBoostPercent, Tyre[] tyres, int activeFaultCount,
+            double criticalFaultCountdown) {
         this.powerState = powerState;
         this.mode = mode;
         this.speedKmh = speedKmh;
@@ -65,6 +67,7 @@ public final class TelemetrySnapshot {
         this.launchBoostPercent = launchBoostPercent;
         this.tyres = tyres;              // Car already hands us a defensive copy (Tyre's copy constructor)
         this.activeFaultCount = activeFaultCount;
+        this.criticalFaultCountdown = criticalFaultCountdown;
     }
 
     public PowerState getPowerState() { return powerState; }
@@ -87,6 +90,7 @@ public final class TelemetrySnapshot {
     public double getLaunchBoostPercent() { return launchBoostPercent; }
     public Tyre[] getTyres() { return tyres; }
     public int getActiveFaultCount() { return activeFaultCount; }
+    public double getCriticalFaultCountdown() { return criticalFaultCountdown; }
 
     @Override
     public String toString() {

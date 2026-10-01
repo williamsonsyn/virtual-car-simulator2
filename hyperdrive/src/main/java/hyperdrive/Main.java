@@ -318,6 +318,52 @@ public class Main {
             System.out.println("      " + t);
         }
 
+        title("16. Critical-fault shutdown countdown");
+        Car faultCar = new Car(logger);
+        try {
+            faultCar.powerOn();
+            faultCar.pressBrake(1.0);
+            faultCar.startEngine();
+        } catch (OperationDeniedException e) {
+            printDenied(e);
+        }
+        System.out.println("   engine running, no faults -> injecting OVERHEATING (critical)");
+        faultCar.injectFault(FaultType.OVERHEATING);
+        for (int i = 0; i < 3; i++) {
+            run(faultCar, 2);
+            System.out.printf("   after %ds -> engine running: %b | countdown: %.0fs%n",
+                    (i + 1) * 2, faultCar.getEngine().isRunning(), faultCar.getCriticalFaultCountdown());
+        }
+        System.out.println("   clearing the fault before time runs out...");
+        faultCar.clearFault(FaultType.OVERHEATING);
+        run(faultCar, 1);
+        System.out.printf("   after clearing -> engine running: %b | countdown: %.0fs (cancelled)%n",
+                faultCar.getEngine().isRunning(), faultCar.getCriticalFaultCountdown());
+
+        System.out.println("   now injecting it again and NOT clearing it this time...");
+        faultCar.injectFault(FaultType.OVERHEATING);
+        run(faultCar, 11);   // past the 10s shutdown threshold
+        System.out.printf("   after 11s uncleared -> engine running: %b | countdown: %.0fs%n",
+                faultCar.getEngine().isRunning(), faultCar.getCriticalFaultCountdown());
+
+        System.out.println("   trying to restart while the fault is still active...");
+        try {
+            faultCar.pressBrake(1.0);
+            faultCar.startEngine();
+            System.out.println("   UNEXPECTED: engine started with a critical fault active");
+        } catch (OperationDeniedException e) {
+            printDenied(e);
+        }
+
+        System.out.println("   clearing the fault and restarting...");
+        faultCar.clearFault(FaultType.OVERHEATING);
+        try {
+            faultCar.startEngine();
+            System.out.println("   engine restarted - running: " + faultCar.getEngine().isRunning());
+        } catch (OperationDeniedException e) {
+            printDenied(e);
+        }
+
         title("Session events (in-memory view - full history is in the log file above)");
         for (String e : car.getEvents()) {
             System.out.println("   " + e);
