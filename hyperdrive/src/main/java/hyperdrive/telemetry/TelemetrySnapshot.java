@@ -30,6 +30,7 @@ public final class TelemetrySnapshot {
     private final double coolantTemp;
     private final double oilTemp;
     private final double brakeDiscTemp;
+    private final boolean absActive;
     private final double batteryVoltage;
     private final AirbrakeState airbrakeState;
     private final LiftState liftState;
@@ -43,7 +44,7 @@ public final class TelemetrySnapshot {
 
     public TelemetrySnapshot(PowerState powerState, DriveModeInfo mode, double speedKmh, double rpm,
             double throttle, GearPosition gear, double fuelLevelPercent, double fuelPressure,
-            double coolantTemp, double oilTemp, double brakeDiscTemp, double batteryVoltage,
+            double coolantTemp, double oilTemp, double brakeDiscTemp, boolean absActive, double batteryVoltage,
             AirbrakeState airbrakeState, LiftState liftState, boolean escEnabled, double driftLevel,
             LaunchState launchState, double launchBoostPercent, Tyre[] tyres, int activeFaultCount,
             double criticalFaultCountdown) {
@@ -58,6 +59,7 @@ public final class TelemetrySnapshot {
         this.coolantTemp = coolantTemp;
         this.oilTemp = oilTemp;
         this.brakeDiscTemp = brakeDiscTemp;
+        this.absActive = absActive;
         this.batteryVoltage = batteryVoltage;
         this.airbrakeState = airbrakeState;
         this.liftState = liftState;
@@ -81,6 +83,7 @@ public final class TelemetrySnapshot {
     public double getCoolantTemp() { return coolantTemp; }
     public double getOilTemp() { return oilTemp; }
     public double getBrakeDiscTemp() { return brakeDiscTemp; }
+    public boolean isAbsActive() { return absActive; }
     public double getBatteryVoltage() { return batteryVoltage; }
     public AirbrakeState getAirbrakeState() { return airbrakeState; }
     public LiftState getLiftState() { return liftState; }

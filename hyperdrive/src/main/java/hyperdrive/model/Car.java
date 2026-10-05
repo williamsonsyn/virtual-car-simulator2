@@ -433,14 +433,19 @@ public class Car {
     /** Seconds until auto-shutdown if a critical fault isn't cleared in time; 0 if no countdown is active. */
     public synchronized double getCriticalFaultCountdown() { return Math.max(0.0, criticalFaultCountdown); }
 
-    /** Deliberately simple speed model: speed chases (rpm fraction x gear top speed). No real physics. */
+    /**
+     * Speed model, driven by throttle directly (not via RPM - see below for why).
+     * No real physics - but the engine/wheel RELATIONSHIP is now mechanically honest: see the
+     * RPM coupling step after speed is updated.
+     */
     private void updateSpeed(double dt) {
         double speed = speedSensor.getValue();
         GearPosition gear = transmission.getGear();
+        boolean coupled = gear.isForward() || gear == GearPosition.R;   // clutch/torque path to the wheels
 
         double target = 0.0;
-        if (engine.isRunning() && (gear.isForward() || gear == GearPosition.R)) {
-            target = (engine.getRpm() / Engine.REDLINE_RPM) * Transmission.getTopSpeed(gear);
+        if (engine.isRunning() && coupled) {
+            target = engine.getThrottle() * Transmission.getTopSpeed(gear);
             target *= (1.0 - esc.getInterventionStrength());   // ESC cuts acceleration during wheelspin
         }
         if (target > speed) {
@@ -454,6 +459,31 @@ public class Car {
             speed = 0.0;
         }
         speedSensor.setValue(speed);
+
+        // Mechanical RPM coupling: in a real geared car, the engine is tied to the wheels whenever
+        // a gear is engaged - lifting off the throttle does NOT let RPM drop independently of speed,
+        // it falls WITH speed (engine braking). We only let RPM run ahead of this mechanical value
+        // while actively accelerating (throttle applied) - that gap is exactly what ESC's wheelspin
+        // detection (Step 4) is looking for. Coasting or braking locks RPM straight to speed.
+        if (coupled && engine.isRunning()) {
+            double topSpeed = Transmission.getTopSpeed(gear);
+            double speedFraction = (topSpeed > 0) ? Math.min(1.0, speed / topSpeed) : 0.0;
+            double mechanicalRpm = Math.max(Engine.IDLE_RPM,
+                    Engine.IDLE_RPM + speedFraction * (Engine.REDLINE_RPM - Engine.IDLE_RPM));
+
+            if (engine.getThrottle() > 0.05) {
+                // Accelerating: let the engine's own throttle-chase RPM stand (it may run ahead of
+                // the mechanical value - that's wheelspin/ESC territory) but never let it read
+                // BELOW what the wheels are mechanically forcing it to.
+                if (engine.getRpm() < mechanicalRpm) {
+                    engine.setCoupledRpm(mechanicalRpm);
+                }
+            } else {
+                // Coasting or braking: no engine power being delivered, so there is no reason for
+                // RPM to differ from the mechanical value - lock it, exactly like engine braking.
+                engine.setCoupledRpm(mechanicalRpm);
+            }
+        }
     }
 
     // ------------------------------------------------------------------ helpers
@@ -528,7 +558,7 @@ public class Car {
                 powerState, modeInfo, speedSensor.getValue(), engine.getRpm(), engine.getThrottle(),
                 transmission.getGear(), fuel.getLevelPercent(), fuel.getPressure(),
                 cooling.getCoolantTemp(), cooling.getOilTemp(), brakes.getDiscTemperature(),
-                electrical.getVoltage(), airbrake.getState(), lift.getState(), esc.isEnabled(),
+                brakes.isAbsActive(), electrical.getVoltage(), airbrake.getState(), lift.getState(), esc.isEnabled(),
                 esc.getDriftLevel(), launch.getState(), launch.getBoostPercent(),
                 tyres.getSnapshot(), activeFaults.size(), getCriticalFaultCountdown());
     }

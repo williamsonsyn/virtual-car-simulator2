@@ -9,6 +9,8 @@ public class BrakeSystem extends VehicleSystem {
     private static final double NOMINAL_PRESSURE = 120.0;
     private static final double FAULT_PRESSURE = 40.0;
     private static final double AMBIENT_TEMP = 40.0;
+    private static final double ABS_MIN_PEDAL = 0.7;    // hard braking
+    private static final double ABS_MIN_SPEED = 40.0;   // km/h - ABS only matters above walking pace
 
     private final PressureSensor hydraulicPressure =
             new PressureSensor("Brake hydraulic pressure", NOMINAL_PRESSURE, 80.0);
@@ -26,6 +28,9 @@ public class BrakeSystem extends VehicleSystem {
         apply(amount, false);
     }
 
+    // NOTE: update(dt) recomputes absActive from pedal+speed every tick (real ABS decides for
+    // itself) - so this parameter only holds until the next tick. Kept for callers that want an
+    // immediate value for this instant, and to keep the two-overload example meaningful.
     public void apply(double amount, boolean absActive) {
         if (amount < 0 || amount > 1) {
             throw new IllegalArgumentException("Brake input must be between 0 and 1");
@@ -42,6 +47,8 @@ public class BrakeSystem extends VehicleSystem {
     }
 
     public boolean isPedalPressed() { return pedal > 0.1; }
+
+    public boolean isAbsActive() { return absActive; }
 
     /** Raw pedal position, 0.0-1.0. Used by ESC and Launch Control to check the driver's inputs. */
     public double getPedalPosition() { return pedal; }
@@ -63,6 +70,12 @@ public class BrakeSystem extends VehicleSystem {
 
     @Override
     public void update(double dt) {
+        // ABS has its own continuous monitoring in a real car - it isn't something the driver
+        // requests, it engages/disengages itself based on current conditions. Re-checking every
+        // tick (rather than only when apply() is called) means it correctly disengages the
+        // moment speed drops below the threshold, even if the pedal is still held hard.
+        absActive = pedal >= ABS_MIN_PEDAL && speedKmh >= ABS_MIN_SPEED;
+
         double t = discTemp.getValue();
         double heating = pedal * (speedKmh / 100.0) * 90.0 * dt;   // braking from speed heats the discs
         double cooling = (t - AMBIENT_TEMP) * 0.05 * dt;      // air cools them

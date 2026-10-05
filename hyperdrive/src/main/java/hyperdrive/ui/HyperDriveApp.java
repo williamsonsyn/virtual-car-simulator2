@@ -17,11 +17,14 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * App entry point and coordinator. Holds the Car, the Logger, the SimulationEngine's thread, and
@@ -31,8 +34,8 @@ import javafx.stage.Stage;
  *
  * Keys: I power on, ENTER start engine, O stop/power off, W/S throttle/brake (held), Q/E gear
  * down/up, P/N/R park/neutral/reverse, 1/2/3 Comfort/Sport/Track, B airbrake, V lift, L launch,
- * F switch to Fault Simulator, C switch back to Cockpit.
- * NOT implemented: A/D (steering - no system to bind to), T (Diagnostics screen - not built yet).
+ * F switch to Fault Simulator, T switch to Diagnostics, C switch back to Cockpit.
+ * NOT implemented: A/D (steering - there is no steering system in the OOP model to bind to).
  *
  * Run with: mvn clean javafx:run   (see README "Run the JavaFX UI").
  */
@@ -45,6 +48,7 @@ public class HyperDriveApp extends Application {
 
     private CockpitScreen cockpitScreen;
     private FaultSimulatorScreen faultScreen;
+    private DiagnosticsScreen diagnosticsScreen;
     private Screen[] screens;   // refreshed every frame regardless of which is visible
 
     private BorderPane root;
@@ -53,11 +57,28 @@ public class HyperDriveApp extends Application {
     private Label statusLabel;
     private Label hintLabel;
 
+    // Key-repeat guard: JavaFX fires KEY_PRESSED repeatedly while a key is held down (OS auto-repeat).
+    // Without this, holding ENTER would call car.startEngine() dozens of times a second.
+    private final Set<KeyCode> heldKeys = new HashSet<>();
+
+    // Throttle/brake pedal smoothing: PRESS ramps up over PEDAL_RAMP_SECONDS (feels like a real pedal
+    // push, not a light switch); RELEASE is instant, same as before - this also means releaseBrake()'s
+    // launch-trigger check (see Car) still fires exactly when it always did.
+    private static final double PEDAL_RAMP_SECONDS = 0.25;
+    private boolean throttleHeld = false;
+    private boolean brakeHeld = false;
+    private double throttleValue = 0;
+    private double brakeValue = 0;
+    private long lastInputTickNanos = -1;
+
     private static final String COCKPIT_HINT =
             "I power on | ENTER start | O stop/power off | W/S throttle/brake | Q/E gear down/up | "
-                    + "P/N/R park/neutral/reverse | 1/2/3 Comfort/Sport/Track | B airbrake | V lift | L launch | F faults";
+                    + "P/N/R park/neutral/reverse | 1/2/3 Comfort/Sport/Track | B airbrake | V lift | L launch | "
+                    + "F faults | T diagnostics";
     private static final String FAULT_SIM_HINT =
             "Click a fault's INJECT/CLEAR button to toggle it. C = back to Cockpit.";
+    private static final String DIAGNOSTICS_HINT =
+            "Live safety checks, system status, and recent log history. C = back to Cockpit.";
 
     @Override
     public void start(Stage stage) {
@@ -67,7 +88,8 @@ public class HyperDriveApp extends Application {
 
         cockpitScreen = new CockpitScreen();
         faultScreen = new FaultSimulatorScreen(car);
-        screens = new Screen[] {cockpitScreen, faultScreen};
+        diagnosticsScreen = new DiagnosticsScreen(car, logger.getFilePath());
+        screens = new Screen[] {cockpitScreen, faultScreen, diagnosticsScreen};
 
         root = buildShell();
         Scene scene = new Scene(root, 900, 620);
@@ -88,7 +110,8 @@ public class HyperDriveApp extends Application {
         AnimationTimer refreshLoop = new AnimationTimer() {
             @Override
             public void handle(long now) {
-                refreshAll();   // read-only: this timer never changes Car, only displays it
+                updateHeldInputs(now);   // ramps throttle/brake while W/S are held
+                refreshAll();            // read-only: this timer never changes Car, only displays it
             }
         };
         refreshLoop.start();
@@ -140,15 +163,26 @@ public class HyperDriveApp extends Application {
         hintLabel.setText(FAULT_SIM_HINT);
     }
 
+    private void showDiagnostics() {
+        root.setCenter(diagnosticsScreen);
+        screenNameLabel.setText("DIAGNOSTICS");
+        hintLabel.setText(DIAGNOSTICS_HINT);
+        diagnosticsScreen.refreshLogHistory();   // pick up anything logged since we last looked
+    }
+
     // ------------------------------------------------------------------ input
 
     private void handleKeyPressed(KeyEvent event) {
-        switch (event.getCode()) {
+        KeyCode code = event.getCode();
+        if (!heldKeys.add(code)) {
+            return;   // OS key-repeat while already held - ignore; each physical press reaches here once
+        }
+        switch (code) {
             case I -> attempt("POWER ON", car::powerOn);
             case ENTER -> attempt("START ENGINE", car::startEngine);
             case O -> attempt("STOP / POWER OFF", this::powerDown);
-            case W -> car.setThrottle(1.0);
-            case S -> car.pressBrake(1.0);
+            case W -> throttleHeld = true;
+            case S -> brakeHeld = true;
             case Q -> attempt("DOWNSHIFT", car::shiftDown);
             case E -> attempt("UPSHIFT", car::shiftUp);
             case P -> attempt("PARK", () -> car.shiftGear(GearPosition.P));
@@ -163,16 +197,47 @@ public class HyperDriveApp extends Application {
                     this::toggleLift);
             case L -> attempt("REQUEST LAUNCH", car::requestLaunch);
             case F -> showFaultSimulator();
+            case T -> showDiagnostics();
             case C -> showCockpit();
             default -> { }
         }
     }
 
     private void handleKeyReleased(KeyEvent event) {
-        switch (event.getCode()) {
-            case W -> car.setThrottle(0.0);
-            case S -> car.releaseBrake();
+        KeyCode code = event.getCode();
+        heldKeys.remove(code);
+        switch (code) {
+            case W -> {
+                throttleHeld = false;
+                throttleValue = 0;
+                car.setThrottle(0.0);   // instant release
+            }
+            case S -> {
+                brakeHeld = false;
+                brakeValue = 0;
+                car.releaseBrake();   // instant release - this is what checks for a ready launch
+            }
             default -> { }
+        }
+    }
+
+    /** Ramps throttle/brake UP smoothly while W/S are held. Release is instant (see handleKeyReleased). */
+    private void updateHeldInputs(long nowNanos) {
+        if (lastInputTickNanos < 0) {
+            lastInputTickNanos = nowNanos;
+            return;
+        }
+        double dt = (nowNanos - lastInputTickNanos) / 1_000_000_000.0;
+        lastInputTickNanos = nowNanos;
+        dt = Math.min(dt, 0.1);   // clamp a stalled frame, same spirit as SimulationEngine's own clamp
+
+        if (throttleHeld && throttleValue < 1.0) {
+            throttleValue = Math.min(1.0, throttleValue + dt / PEDAL_RAMP_SECONDS);
+            car.setThrottle(throttleValue);
+        }
+        if (brakeHeld && brakeValue < 1.0) {
+            brakeValue = Math.min(1.0, brakeValue + dt / PEDAL_RAMP_SECONDS);
+            car.pressBrake(brakeValue);
         }
     }
 

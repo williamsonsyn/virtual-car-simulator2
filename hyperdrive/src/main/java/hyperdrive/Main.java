@@ -69,7 +69,7 @@ public class Main {
         attemptUpshift(car);
         run(car, 1);
         car.releaseBrake();
-        car.setThrottle(0.7);
+        car.setThrottle(1.0);
         run(car, 6);
         status(car);
         System.out.println("> Try P while moving");
@@ -78,7 +78,7 @@ public class Main {
         attemptUpshift(car);
         run(car, 1);
         attemptUpshift(car);
-        run(car, 5);
+        run(car, 7);
         status(car);
         System.out.println("> Downshift at 100+ km/h (over-rev protection)");
         attemptDownshift(car);

@@ -1,5 +1,7 @@
 package hyperdrive.ui;
 
+import hyperdrive.sensors.SpeedSensor;
+import hyperdrive.systems.Engine;
 import hyperdrive.systems.Tyre;
 import hyperdrive.telemetry.TelemetrySnapshot;
 import javafx.geometry.Insets;
@@ -16,16 +18,21 @@ import javafx.scene.layout.VBox;
  * this screen only shows the result, via refresh(TelemetrySnapshot).
  */
 public class CockpitScreen extends BorderPane implements Screen {
-    private final Label speedLabel;
-    private final Label rpmLabel;
+    private static final double SPEED_GAUGE_MAX = SpeedSensor.MAX_SPEED_KMH;
+    private static final double SPEED_GAUGE_REDZONE = 280;
+
+    private final GaugeView speedGauge;
+    private final GaugeView rpmGauge;
     private final Label gearLabel;
     private final Label modeLabel;
     private final Label fuelLabel;
     private final Label coolantLabel;
     private final Label oilLabel;
     private final Label batteryLabel;
+    private final Label brakeLabel;
     private final Label driftLabel;
     private final Label launchLabel;
+    private final Label faultCountLabel;
     private final Label airbrakeLabel;
     private final Label liftLabel;
     private final Label shutdownWarningLabel;
@@ -34,14 +41,12 @@ public class CockpitScreen extends BorderPane implements Screen {
     public CockpitScreen() {
         getStyleClass().add("cockpit-screen");
 
-        speedLabel = bigLabel("0");
-        VBox speedBox = labeledColumn(speedLabel, "km/h");
-        rpmLabel = bigLabel("0");
-        VBox rpmBox = labeledColumn(rpmLabel, "RPM");
+        rpmGauge = new GaugeView("RPM x1000", 0, Engine.REDLINE_RPM, Engine.REDLINE_RPM * 0.875, "rpm");
+        speedGauge = new GaugeView("SPEED", 0, SPEED_GAUGE_MAX, SPEED_GAUGE_REDZONE, "km/h");
         gearLabel = bigLabel("P");
         VBox gearBox = labeledColumn(gearLabel, "GEAR");
 
-        HBox centerRow = new HBox(40, speedBox, rpmBox, gearBox);
+        HBox centerRow = new HBox(20, rpmGauge, gearBox, speedGauge);
         centerRow.setAlignment(Pos.CENTER);
 
         modeLabel = new Label("Comfort");
@@ -50,7 +55,9 @@ public class CockpitScreen extends BorderPane implements Screen {
         driftLabel.getStyleClass().add("info-label");
         launchLabel = new Label("launch: IDLE");
         launchLabel.getStyleClass().add("info-label");
-        HBox modeRow = new HBox(20, modeLabel, driftLabel, launchLabel);
+        faultCountLabel = new Label("faults: 0");
+        faultCountLabel.getStyleClass().add("info-label");
+        HBox modeRow = new HBox(20, modeLabel, driftLabel, launchLabel, faultCountLabel);
         modeRow.setAlignment(Pos.CENTER);
 
         shutdownWarningLabel = new Label("");
@@ -67,9 +74,11 @@ public class CockpitScreen extends BorderPane implements Screen {
         coolantLabel = new Label("Coolant: --");
         oilLabel = new Label("Oil: --");
         batteryLabel = new Label("Battery: --");
+        brakeLabel = new Label("Brakes: --");
         airbrakeLabel = new Label("Airbrake: --");
         liftLabel = new Label("Lift: --");
-        VBox statusColumn = new VBox(8, fuelLabel, coolantLabel, oilLabel, batteryLabel, airbrakeLabel, liftLabel);
+        VBox statusColumn = new VBox(8,
+                fuelLabel, coolantLabel, oilLabel, batteryLabel, brakeLabel, airbrakeLabel, liftLabel);
         statusColumn.getStyleClass().add("side-panel");
         statusColumn.setPadding(new Insets(16));
 
@@ -106,18 +115,24 @@ public class CockpitScreen extends BorderPane implements Screen {
 
     @Override
     public void refresh(TelemetrySnapshot t) {
-        speedLabel.setText(String.format("%.0f", t.getSpeedKmh()));
-        rpmLabel.setText(String.format("%.0f", t.getRpm()));
+        speedGauge.setValue(t.getSpeedKmh());
+        rpmGauge.setValue(t.getRpm());
         gearLabel.setText(t.getGear().getLabel());
         modeLabel.setText(t.getMode().getName());
         fuelLabel.setText(String.format("Fuel: %.0f%%", t.getFuelLevelPercent()));
         coolantLabel.setText(String.format("Coolant: %.0f C", t.getCoolantTemp()));
         oilLabel.setText(String.format("Oil: %.0f C", t.getOilTemp()));
         batteryLabel.setText(String.format("Battery: %.1f V", t.getBatteryVoltage()));
+        brakeLabel.setText(String.format("Brakes: %.0f C%s", t.getBrakeDiscTemp(), t.isAbsActive() ? " | ABS" : ""));
+        brakeLabel.getStyleClass().removeAll("info-label", "abs-active");
+        brakeLabel.getStyleClass().add(t.isAbsActive() ? "abs-active" : "info-label");
         airbrakeLabel.setText("Airbrake: " + t.getAirbrakeState());
         liftLabel.setText("Lift: " + t.getLiftState());
         driftLabel.setText(String.format("drift %.0f%%", t.getDriftLevel()));
         launchLabel.setText(String.format("launch: %s (%.0f%%)", t.getLaunchState(), t.getLaunchBoostPercent()));
+        faultCountLabel.setText("faults: " + t.getActiveFaultCount());
+        faultCountLabel.getStyleClass().removeAll("info-label", "fault-count-active");
+        faultCountLabel.getStyleClass().add(t.getActiveFaultCount() > 0 ? "fault-count-active" : "info-label");
 
         Tyre[] tyres = t.getTyres();
         String[] positions = {"FL", "FR", "RL", "RR"};

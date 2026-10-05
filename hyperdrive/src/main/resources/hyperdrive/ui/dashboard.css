@@ -142,6 +142,44 @@
     -fx-background-color: #262b33;
 }
 
+.diagnostics-screen {
+    -fx-background-color: #0b0d10;
+}
+.diag-header {
+    -fx-text-fill: #8a8f97;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+.diag-pass {
+    -fx-text-fill: #59d68c;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+    -fx-font-size: 13px;
+}
+.diag-fail {
+    -fx-text-fill: #ff6b6b;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+    -fx-font-size: 13px;
+}
+.log-scroll {
+    -fx-background: #14171c;
+    -fx-background-color: transparent;
+}
+.log-line {
+    -fx-text-fill: #9aa0a8;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+    -fx-font-size: 11px;
+}
+
+.abs-active {
+    -fx-text-fill: #59a6ff !important;
+    -fx-font-weight: bold;
+}
+.fault-count-active {
+    -fx-text-fill: #ff6b6b !important;
+    -fx-font-weight: bold;
+}
+
 .shutdown-warning {
     -fx-text-fill: #ff3b3b;
     -fx-font-family: "Consolas", "Menlo", monospace;

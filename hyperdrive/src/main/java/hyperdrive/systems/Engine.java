@@ -21,7 +21,8 @@ public class Engine extends VehicleSystem implements Loggable {
     // NOTE: the Car decides WHETHER the engine may start (diagnostics). The Engine only obeys.
     public void start() {
         running = true;
-        rpm = IDLE_RPM;
+        rpm = 0;   // NOT IDLE_RPM directly - update(dt)'s existing chase brings it up to idle gradually,
+                   // like a real engine cranking, rather than snapping to idle the instant it starts.
     }
 
     public void stop() {
@@ -38,6 +39,16 @@ public class Engine extends VehicleSystem implements Loggable {
 
     /** Called by the Car once per tick, from the current DriveMode's throttle response. */
     public void setResponseFactor(double factor) { this.responseFactor = factor; }
+
+    /**
+     * Called by the Car when the transmission is mechanically coupled to the wheels (in a forward
+     * gear or reverse) - overrides whatever this tick's throttle-chase computed, so RPM reflects
+     * the car's actual speed through the current gear ratio, the way a real geared car's engine
+     * is tied to the wheels. See Car.updateSpeed() for when this is and isn't applied.
+     */
+    public void setCoupledRpm(double rpm) {
+        this.rpm = rpm;
+    }
 
     @Override
     public void update(double dt) {
