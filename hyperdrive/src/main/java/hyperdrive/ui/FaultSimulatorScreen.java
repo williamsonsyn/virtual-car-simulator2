@@ -8,7 +8,9 @@ import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -39,7 +41,11 @@ public class FaultSimulatorScreen extends BorderPane implements Screen {
         summaryLabel.getStyleClass().add("fault-summary");
         BorderPane.setMargin(summaryLabel, new Insets(0, 0, 16, 0));
         setTop(summaryLabel);
-        setCenter(buildFaultGrid());
+        ScrollPane scroll = new ScrollPane(buildFaultGrid());
+        scroll.setFitToWidth(true);
+        scroll.getStyleClass().add("log-scroll");
+        setCenter(scroll);
+        setBottom(buildConditionBar());
     }
 
     private GridPane buildFaultGrid() {
@@ -71,6 +77,25 @@ public class FaultSimulatorScreen extends BorderPane implements Screen {
             row++;
         }
         return grid;
+    }
+
+    /** Non-fault conditions that drive warnings and launch preconditions: door, seatbelt, road slope, warm-up. */
+    private HBox buildConditionBar() {
+        Button door = new Button("TOGGLE DOOR");
+        door.getStyleClass().add("fault-toggle-button");
+        door.setOnAction(e -> car.setDoorOpen(!car.getTelemetry().isDoorOpen()));
+        Button belt = new Button("TOGGLE SEATBELT");
+        belt.getStyleClass().add("fault-toggle-button");
+        belt.setOnAction(e -> car.setSeatBeltFastened(!car.getTelemetry().isSeatBeltFastened()));
+        Button slope = new Button("TOGGLE 8% SLOPE");
+        slope.getStyleClass().add("fault-toggle-button");
+        slope.setOnAction(e -> car.setRoadSlope(car.getRoadSlope() == 0 ? 8.0 : 0.0));
+        Button warm = new Button("PRE-WARM (SIM)");
+        warm.getStyleClass().add("fault-toggle-button");
+        warm.setOnAction(e -> car.preWarm());
+        HBox bar = new HBox(12, door, belt, slope, warm);
+        bar.setPadding(new Insets(14, 0, 0, 0));
+        return bar;
     }
 
     private void toggleFault(FaultType type) {

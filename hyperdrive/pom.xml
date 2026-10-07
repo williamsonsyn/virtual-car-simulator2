@@ -6,7 +6,7 @@
 
     <groupId>hyperdrive</groupId>
     <artifactId>hyperdrive</artifactId>
-    <version>0.2.0</version>
+    <version>0.3.0</version>
     <name>HyperDrive: Object-Oriented Hypercar Control and Simulation System</name>
 
     <properties>

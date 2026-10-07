@@ -29,6 +29,9 @@ public class Notification {
     public Severity getSeverity() { return severity; }
     public long getTimestamp() { return timestamp; }
 
+    /** How long ago this notification was created - the dashboard shows new ones as a temporary pop-up. */
+    public long getAgeMillis() { return System.currentTimeMillis() - timestamp; }
+
     @Override
     public String toString() { return "[" + severity + "] " + message; }
 }

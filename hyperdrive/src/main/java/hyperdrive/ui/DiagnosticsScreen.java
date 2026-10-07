@@ -39,7 +39,7 @@ public class DiagnosticsScreen extends BorderPane implements Screen {
         getStyleClass().add("diagnostics-screen");
         setPadding(new Insets(20));
 
-        Label checksHeader = new Label("STARTUP SAFETY CHECKS");
+        Label checksHeader = new Label("SAFETY CHECKS (PASS / WARN / FAIL / CRIT)");
         checksHeader.getStyleClass().add("diag-header");
         VBox checksPanel = new VBox(10, checksHeader, checksList);
         checksPanel.getStyleClass().add("side-panel");
@@ -47,7 +47,11 @@ public class DiagnosticsScreen extends BorderPane implements Screen {
 
         Label statusHeader = new Label("SYSTEM STATUS");
         statusHeader.getStyleClass().add("diag-header");
-        VBox statusPanel = new VBox(10, statusHeader, statusList);
+        ScrollPane statusScroll = new ScrollPane(statusList);
+        statusScroll.getStyleClass().add("log-scroll");
+        statusScroll.setFitToWidth(true);
+        statusScroll.setPrefHeight(300);
+        VBox statusPanel = new VBox(10, statusHeader, statusScroll);
         statusPanel.getStyleClass().add("side-panel");
         statusPanel.setPadding(new Insets(14));
 
@@ -78,11 +82,19 @@ public class DiagnosticsScreen extends BorderPane implements Screen {
     @Override
     public void refresh(TelemetrySnapshot telemetry) {
         checksList.getChildren().clear();
-        for (String line : car.getDiagnosticReport()) {
-            Label label = new Label(line);
-            label.getStyleClass().add(line.startsWith("PASS") ? "diag-pass" : "diag-fail");
+        for (hyperdrive.safety.DiagnosticResult result : car.getDiagnosticResults()) {
+            Label label = new Label(result.toString());
+            label.getStyleClass().add(switch (result.getLevel()) {
+                case PASS -> "diag-pass";
+                case WARNING -> "diag-warn";
+                default -> "diag-fail";
+            });
             checksList.getChildren().add(label);
         }
+        Label overall = new Label("OVERALL: " + car.getDiagnosticLevel());
+        overall.getStyleClass().add(car.getDiagnosticLevel() == hyperdrive.enums.DiagnosticLevel.PASS ? "diag-pass"
+                : (car.getDiagnosticLevel() == hyperdrive.enums.DiagnosticLevel.WARNING ? "diag-warn" : "diag-fail"));
+        checksList.getChildren().add(overall);
 
         statusList.getChildren().clear();
         for (String line : car.getSystemStatusLines()) {

@@ -1,26 +1,19 @@
 package hyperdrive.safety;
 
+import hyperdrive.enums.DiagnosticLevel;
 import hyperdrive.model.Car;
 import hyperdrive.systems.Transmission;
 
-public class TransmissionCheck implements SafetyCheck {
-    private String failureReason = "";
+public class TransmissionCheck extends AbstractSafetyCheck {
+    public TransmissionCheck() { super("Transmission"); }
 
     @Override
     public boolean check(Car car) {
+        begin();
         Transmission t = car.getTransmission();
-        failureReason = "";
         if (t.hasTransmissionFault()) {
-            failureReason = "Transmission fault is active";
-        } else if (!t.isInSafeStartState()) {
-            failureReason = "Gear must be P or N (currently " + t.getGear().getLabel() + ")";
+            fail(DiagnosticLevel.CRITICAL, "Transmission fault is active");
         }
-        return failureReason.isEmpty();
+        return finish();
     }
-
-    @Override
-    public String getName() { return "Transmission"; }
-
-    @Override
-    public String getFailureReason() { return failureReason; }
 }

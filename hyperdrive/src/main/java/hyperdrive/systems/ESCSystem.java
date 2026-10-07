@@ -1,83 +1,120 @@
 package hyperdrive.systems;
 
+import hyperdrive.enums.EscMode;
 import hyperdrive.enums.FaultType;
-import hyperdrive.enums.GearPosition;
 
 /**
- * Simplified Electronic Stability / Traction Control.
- * Compares how fast the engine "thinks" the car should be going (from RPM and gear) against
- * how fast it actually is. A big gap means wheelspin. When ESC is on, it cuts power to correct it.
- * When off (Track mode only), the gap is reported as a simplified "drift level" instead of being corrected.
+ * Simplified Electronic Stability / Traction Control with four states: ESC ON, ESC DYNAMIC, ESC TRACK DYNAMIC, ESC OFF.
+ * It reads the tyre slip the dynamics model reports and intervenes in two ways: it CUTS ENGINE TORQUE and it asks the
+ * BrakeSystem to brake individual wheels (outer front against oversteer, inner rear against understeer).
+ * Each mode tolerates a different amount of slip before it acts; the drive mode's permissiveness widens that further.
+ * ESC OFF stays OFF until the next ignition cycle (the Car resets it to ESC ON in powerOn()).
  */
 public class ESCSystem extends VehicleSystem implements Loggable {
-    private static final double SLIP_THRESHOLD = 0.4;
-    private static final double FULL_INTERVENTION = 0.3;      // cuts acceleration by 30%
-    private static final double RELAXED_INTERVENTION = 0.15;  // cuts acceleration by 15%
+    private static final double BASE_SLIP_THRESHOLD = 0.10;
 
-    private boolean enabled = true;
-    private boolean escFullyActiveInMode = true;   // from the current DriveMode
-    private double driftLevel = 0;                 // 0-100, telemetry only
-    private boolean tractionCutActive = false;
+    private EscMode mode = EscMode.ON;
 
+    // Inputs
     private double throttle = 0;
     private double speedKmh = 0;
-    private double rpm = 0;
-    private GearPosition gear = GearPosition.P;
+    private double steer = 0;
+    private double frontSlip = 0;
+    private double rearSlip = 0;
+    private double permissiveness = 1.0;
+
+    // Outputs
+    private boolean intervening = false;
+    private double torqueCut = 0;
+    private double yawRelief = 0;
+    private final double[] wheelRequest = new double[4];   // FL FR RL RR, 0-1
+    private double driftLevel = 0;
 
     public ESCSystem() {
         super("ESC");
     }
 
-    public void setInputs(double throttle, double speedKmh, double rpm, GearPosition gear, boolean modeFullyActive) {
+    /** Car feeds the driving situation, once per tick. */
+    public void setInputs(double throttle, double speedKmh, double steerNorm, double frontSlip, double rearSlip,
+            double permissiveness) {
         this.throttle = throttle;
         this.speedKmh = speedKmh;
-        this.rpm = rpm;
-        this.gear = gear;
-        this.escFullyActiveInMode = modeFullyActive;
+        this.steer = steerNorm;
+        this.frontSlip = frontSlip;
+        this.rearSlip = rearSlip;
+        this.permissiveness = permissiveness;
     }
 
-    /** Car has already checked that ESC OFF is only allowed in Track mode before calling this. */
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public EscMode getMode() { return mode; }
 
-    public boolean isEnabled() { return enabled; }
+    /** The Car has already validated that this ESC mode is allowed right now. */
+    public void setMode(EscMode mode) { this.mode = mode; }
+
+    /** Kept from earlier steps: true = ESC ON, false = ESC OFF. */
+    public void setEnabled(boolean enabled) { this.mode = enabled ? EscMode.ON : EscMode.OFF; }
+
+    public boolean isEnabled() { return mode != EscMode.OFF; }
 
     @Override
     public void update(double dt) {
-        tractionCutActive = false;
-        driftLevel = 0;
-        if (!gear.isForward() || rpm <= 0) {
-            return;   // nothing to correct when not driving forward
+        intervening = false;
+        torqueCut = 0;
+        yawRelief = 0;
+        for (int i = 0; i < 4; i++) {
+            wheelRequest[i] = 0;
         }
-        double rpmFraction = rpm / Engine.REDLINE_RPM;
-        double topSpeed = Transmission.getTopSpeed(gear);
-        double speedFraction = (topSpeed > 0) ? Math.min(1.0, speedKmh / topSpeed) : 0.0;
-        double slip = Math.max(0.0, rpmFraction - speedFraction);   // engine "wants" to go faster than it is
+        driftLevel = Math.min(100.0, Math.max(frontSlip, rearSlip) * 100.0);
 
-        driftLevel = Math.min(100.0, slip * 100.0);
-        if (enabled && throttle > 0.5 && slip > SLIP_THRESHOLD) {
-            tractionCutActive = true;
+        if (hasFault(FaultType.ESC_FAULT) || mode == EscMode.OFF || speedKmh < 5.0 && throttle < 0.5) {
+            return;
+        }
+        double threshold = BASE_SLIP_THRESHOLD / Math.max(0.2, mode.getStrength()) * permissiveness;
+        double cut = 0;
+
+        if (rearSlip > threshold) {                       // wheelspin / oversteer
+            cut = Math.min(0.8, (rearSlip - threshold) * 4.0);
+            if (Math.abs(steer) > 0.2) {
+                wheelRequest[steer > 0 ? 0 : 1] = Math.min(1.0, (rearSlip - threshold) * 4.0);   // outer front wheel
+            } else {
+                wheelRequest[2] = wheelRequest[3] = Math.min(0.5, (rearSlip - threshold) * 2.0);  // straight-line wheelspin
+            }
+        }
+        if (frontSlip > threshold && Math.abs(steer) > 0.2) {   // understeer
+            cut = Math.max(cut, Math.min(0.5, (frontSlip - threshold) * 3.0));
+            wheelRequest[steer > 0 ? 3 : 2] = Math.max(wheelRequest[steer > 0 ? 3 : 2],
+                    Math.min(1.0, (frontSlip - threshold) * 3.0));                                // inner rear wheel
+        }
+        torqueCut = cut;
+        intervening = cut > 0.02;
+        if (intervening) {
+            yawRelief = Math.min(0.7, 0.3 + cut * 0.5) * Math.min(1.0, mode.getStrength() + 0.3);
         }
     }
 
-    /** How much to reduce the acceleration target by, if intervening right now (0.0 = no cut). */
-    public double getInterventionStrength() {
-        if (!tractionCutActive) {
-            return 0.0;
-        }
-        return escFullyActiveInMode ? FULL_INTERVENTION : RELAXED_INTERVENTION;
-    }
+    /** How much the acceleration target is reduced by right now (0.0 = no cut). */
+    public double getInterventionStrength() { return torqueCut; }
 
-    public boolean isTractionCutActive() { return tractionCutActive; }
+    public boolean isTractionCutActive() { return intervening; }
+    public boolean isIntervening() { return intervening; }
+    public double getTorqueCut() { return torqueCut; }
+    public double getYawRelief() { return yawRelief; }
     public double getDriftLevel() { return driftLevel; }
 
-    @Override
-    public boolean handles(FaultType type) { return false; }
+    public double[] getWheelRequests() {
+        double[] copy = new double[4];
+        System.arraycopy(wheelRequest, 0, copy, 0, 4);
+        return copy;
+    }
 
     @Override
-    public boolean selfTest() { return true; }
+    public boolean handles(FaultType type) { return type == FaultType.ESC_FAULT; }
+
+    @Override
+    public boolean selfTest() { return !hasFault(FaultType.ESC_FAULT); }
 
     @Override
     public String getLogSummary() {
-        return String.format("ESC enabled=%b intervening=%b drift=%.0f%%", enabled, tractionCutActive, driftLevel);
+        return String.format("ESC mode=%s intervening=%b torqueCut=%.0f%% drift=%.0f%%",
+                mode, intervening, torqueCut * 100, driftLevel);
     }
 }

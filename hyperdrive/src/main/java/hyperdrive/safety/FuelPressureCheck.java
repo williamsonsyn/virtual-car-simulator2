@@ -1,29 +1,27 @@
 package hyperdrive.safety;
 
+import hyperdrive.enums.DiagnosticLevel;
 import hyperdrive.model.Car;
 import hyperdrive.systems.FuelSystem;
 
-public class FuelPressureCheck implements SafetyCheck {
-    private String failureReason = "";
+public class FuelPressureCheck extends AbstractSafetyCheck {
+    public FuelPressureCheck() { super("Fuel system"); }
 
     @Override
     public boolean check(Car car) {
+        begin();
         FuelSystem fuel = car.getFuel();
-        failureReason = "";
         if (!fuel.isSensorWorking()) {
-            failureReason = "Fuel pressure sensor not responding";
-        } else if (fuel.getLevelPercent() <= FuelSystem.MIN_LEVEL_PERCENT) {
-            failureReason = String.format("Fuel level too low (%.0f%%)", fuel.getLevelPercent());
+            fail(DiagnosticLevel.FAULT, "Fuel pressure sensor not responding");
         } else if (!fuel.isPressureSafe()) {
-            failureReason = String.format("Fuel pressure %.1f bar is below %.1f bar",
-                    fuel.getPressure(), fuel.getMinPressure());
+            fail(DiagnosticLevel.CRITICAL, String.format("Fuel pressure %.1f bar is below %.1f bar",
+                    fuel.getPressure(), fuel.getMinPressure()));
         }
-        return failureReason.isEmpty();
+        if (fuel.getLevelPercent() <= FuelSystem.MIN_LEVEL_PERCENT) {
+            fail(DiagnosticLevel.FAULT, String.format("Fuel level too low (%.0f%%)", fuel.getLevelPercent()));
+        } else if (fuel.isLowFuel()) {
+            fail(DiagnosticLevel.WARNING, String.format("Low fuel (%.0f%%)", fuel.getLevelPercent()));
+        }
+        return finish();
     }
-
-    @Override
-    public String getName() { return "Fuel system"; }
-
-    @Override
-    public String getFailureReason() { return failureReason; }
 }

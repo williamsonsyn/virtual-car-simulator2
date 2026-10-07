@@ -189,3 +189,15 @@
     -fx-background-radius: 4;
     -fx-padding: 8 16 8 16;
 }
+
+/* ---- v2 additions: instrument cluster + diagnostics severity ---- */
+.cockpit-screen {
+    -fx-background-color: #04060b;
+}
+.cluster-pane {
+    -fx-background-color: #04060b;
+}
+.diag-warn {
+    -fx-text-fill: #ffb000;
+    -fx-font-size: 13px;
+}

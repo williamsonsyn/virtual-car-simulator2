@@ -1,27 +1,26 @@
 package hyperdrive.safety;
 
+import hyperdrive.enums.DiagnosticLevel;
 import hyperdrive.model.Car;
 import hyperdrive.systems.BrakeSystem;
 
-public class BrakeCheck implements SafetyCheck {
-    private String failureReason = "";
+public class BrakeCheck extends AbstractSafetyCheck {
+    public BrakeCheck() { super("Brakes"); }
 
     @Override
     public boolean check(Car car) {
+        begin();
         BrakeSystem brakes = car.getBrakes();
-        failureReason = "";
         if (!brakes.isPressureSafe()) {
-            failureReason = String.format("Brake pressure %.0f bar is below %.0f bar",
-                    brakes.getHydraulicPressure(), brakes.getMinPressure());
-        } else if (!brakes.isPedalPressed()) {
-            failureReason = "Brake pedal must be pressed to start";
+            fail(DiagnosticLevel.CRITICAL, String.format("Brake pressure %.0f bar is below %.0f bar",
+                    brakes.getHydraulicPressure(), brakes.getMinPressure()));
         }
-        return failureReason.isEmpty();
+        if (brakes.hasAbsFault()) {
+            fail(DiagnosticLevel.WARNING, "ABS fault - wheels may lock under hard braking");
+        }
+        if (brakes.getDiscTemperature() > 0.9 * brakes.getDiscTemperatureLimit()) {
+            fail(DiagnosticLevel.WARNING, String.format("Brake discs very hot (%.0f C)", brakes.getDiscTemperature()));
+        }
+        return finish();
     }
-
-    @Override
-    public String getName() { return "Brakes"; }
-
-    @Override
-    public String getFailureReason() { return failureReason; }
 }

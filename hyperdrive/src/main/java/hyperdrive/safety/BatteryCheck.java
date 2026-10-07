@@ -1,26 +1,20 @@
 package hyperdrive.safety;
 
+import hyperdrive.enums.DiagnosticLevel;
 import hyperdrive.model.Car;
 import hyperdrive.systems.ElectricalSystem;
 
-public class BatteryCheck implements SafetyCheck {
-    private String failureReason = "";
+public class BatteryCheck extends AbstractSafetyCheck {
+    public BatteryCheck() { super("Battery"); }
 
     @Override
     public boolean check(Car car) {
-        double v = car.getElectrical().getVoltage();
+        begin();
+        double v = car.getElectrical().getRestingVoltage();
         if (v < ElectricalSystem.MIN_START_VOLTAGE) {
-            failureReason = String.format("Battery voltage %.1f V is below %.1f V",
-                    v, ElectricalSystem.MIN_START_VOLTAGE);
-            return false;
+            fail(DiagnosticLevel.FAULT, String.format("Battery voltage %.1f V is below %.1f V",
+                    v, ElectricalSystem.MIN_START_VOLTAGE));
         }
-        failureReason = "";
-        return true;
+        return finish();
     }
-
-    @Override
-    public String getName() { return "Battery"; }
-
-    @Override
-    public String getFailureReason() { return failureReason; }
 }

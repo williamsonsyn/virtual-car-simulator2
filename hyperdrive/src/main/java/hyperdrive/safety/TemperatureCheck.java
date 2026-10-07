@@ -1,29 +1,23 @@
 package hyperdrive.safety;
 
+import hyperdrive.enums.CoolingState;
+import hyperdrive.enums.DiagnosticLevel;
 import hyperdrive.model.Car;
 import hyperdrive.systems.CoolingSystem;
 
-public class TemperatureCheck implements SafetyCheck {
-    private String failureReason = "";
+public class TemperatureCheck extends AbstractSafetyCheck {
+    public TemperatureCheck() { super("Temperatures"); }
 
     @Override
     public boolean check(Car car) {
+        begin();
         CoolingSystem cooling = car.getCooling();
-        failureReason = "";
         if (!cooling.isCoolantOk()) {
-            failureReason = String.format("Coolant %.0f C is above %.0f C",
-                    cooling.getCoolantTemp(), cooling.getCoolantLimit());
+            fail(DiagnosticLevel.CRITICAL, String.format("Coolant %.0f C is above %.0f C",
+                    cooling.getCoolantTemp(), cooling.getCoolantLimit()));
+        } else if (cooling.getState() == CoolingState.HIGH) {
+            fail(DiagnosticLevel.WARNING, String.format("Coolant temperature high (%.0f C)", cooling.getCoolantTemp()));
         }
-        if (!cooling.isOilOk()) {
-            String oil = String.format("Oil %.0f C is above %.0f C", cooling.getOilTemp(), cooling.getOilLimit());
-            failureReason = failureReason.isEmpty() ? oil : failureReason + ", " + oil;
-        }
-        return failureReason.isEmpty();
+        return finish();
     }
-
-    @Override
-    public String getName() { return "Temperatures"; }
-
-    @Override
-    public String getFailureReason() { return failureReason; }
 }
